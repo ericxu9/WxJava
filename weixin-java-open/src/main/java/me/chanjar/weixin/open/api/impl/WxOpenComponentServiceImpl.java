@@ -21,6 +21,7 @@ import me.chanjar.weixin.mp.api.WxMpService;
 import me.chanjar.weixin.open.api.*;
 import me.chanjar.weixin.open.bean.*;
 import me.chanjar.weixin.open.bean.auth.WxOpenAuthorizationInfo;
+import me.chanjar.weixin.open.bean.ma.WxOpenMaApplyOrderPathInfo;
 import me.chanjar.weixin.open.bean.message.WxOpenXmlMessage;
 import me.chanjar.weixin.open.bean.minishop.*;
 import me.chanjar.weixin.open.bean.minishop.coupon.WxMinishopCoupon;
@@ -231,6 +232,20 @@ public class WxOpenComponentServiceImpl implements WxOpenComponentService {
   }
 
   @Override
+  public String post(String uri, String postData, String accessTokenKey, String accessToken) throws WxErrorException {
+    String uriWithComponentAccessToken = uri + (uri.contains("?") ? "&" : "?") + accessTokenKey + "=" + accessToken;
+    try {
+      return getWxOpenService().post(uriWithComponentAccessToken, postData);
+    } catch (WxErrorException e) {
+      WxError error = e.getError();
+      if (error.getErrorCode() != 0) {
+        throw new WxErrorException(error, e);
+      }
+      return error.getErrorMsg();
+    }
+  }
+
+  @Override
   public String get(String uri) throws WxErrorException {
     return get(uri, "component_access_token");
   }
@@ -397,22 +412,24 @@ public class WxOpenComponentServiceImpl implements WxOpenComponentService {
 
   @Override
   public WxOpenAuthorizerOptionResult getAuthorizerOption(String authorizerAppid, String optionName) throws WxErrorException {
+    String authorizerAccessToken = this.getAuthorizerAccessToken(authorizerAppid, false);
     JsonObject jsonObject = new JsonObject();
     jsonObject.addProperty("component_appid", getWxOpenConfigStorage().getComponentAppId());
     jsonObject.addProperty("authorizer_appid", authorizerAppid);
     jsonObject.addProperty("option_name", optionName);
-    String responseContent = post(API_GET_AUTHORIZER_OPTION_URL, jsonObject.toString());
+    String responseContent = post(GET_AUTHORIZER_OPTION_URL, jsonObject.toString(), "access_token", authorizerAccessToken);
     return WxOpenGsonBuilder.create().fromJson(responseContent, WxOpenAuthorizerOptionResult.class);
   }
 
   @Override
   public void setAuthorizerOption(String authorizerAppid, String optionName, String optionValue) throws WxErrorException {
+    String authorizerAccessToken = this.getAuthorizerAccessToken(authorizerAppid, false);
     JsonObject jsonObject = new JsonObject();
     jsonObject.addProperty("component_appid", getWxOpenConfigStorage().getComponentAppId());
     jsonObject.addProperty("authorizer_appid", authorizerAppid);
     jsonObject.addProperty("option_name", optionName);
     jsonObject.addProperty("option_value", optionValue);
-    post(API_SET_AUTHORIZER_OPTION_URL, jsonObject.toString());
+    post(SET_AUTHORIZER_OPTION_URL, jsonObject.toString(), "access_token", authorizerAccessToken);
   }
 
   @Override
@@ -608,7 +625,7 @@ public class WxOpenComponentServiceImpl implements WxOpenComponentService {
 
   @Override
   public WxOpenHaveResult haveOpen() throws WxErrorException {
-    String json = post(GET_OPEN_URL, null);
+    String json = get(HAVE_OPEN_URL, "access_token");
     return WxOpenHaveResult.fromJson(json);
   }
 
@@ -1237,7 +1254,7 @@ public class WxOpenComponentServiceImpl implements WxOpenComponentService {
   public GetShareCloudBaseEnvResponse getShareCloudBaseEnv(List<String> appids) throws WxErrorException {
     JsonObject jsonObject = new JsonObject();
     JsonArray jsonArray = new JsonArray();
-    for(String appId : appids) {
+    for (String appId : appids) {
       jsonArray.add(appId);
     }
     jsonObject.add("appids", jsonArray);
@@ -1274,5 +1291,20 @@ public class WxOpenComponentServiceImpl implements WxOpenComponentService {
     jsonObject.addProperty("appsecret", getWxOpenConfigStorage().getComponentAppSecret());
     String response = getWxOpenService().post(COMPONENT_CLEAR_QUOTA_URL, jsonObject.toString());
     return WxOpenResult.fromJson(response);
+  }
+
+  /**
+   * 申请设置订单页path信息
+   * 注意：一次提交不超过100个appid
+   *
+   * @param info 订单页path信息
+   * @return .
+   * @throws WxErrorException .
+   */
+  @Override
+  public WxOpenResult applySetOrderPathInfo(WxOpenMaApplyOrderPathInfo info) throws WxErrorException {
+    Gson gson = new Gson();
+    String response = post(OPEN_APPLY_SET_ORDER_PATH_INFO, gson.toJson(info));
+    return WxOpenGsonBuilder.create().fromJson(response, WxOpenResult.class);
   }
 }
